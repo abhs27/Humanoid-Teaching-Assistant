@@ -1,0 +1,1 @@
+get_finger_count
