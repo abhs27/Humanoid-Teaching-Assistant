@@ -5,7 +5,6 @@ def run_finger_counting_game():
     import os
     import tkinter as tk
     import pygame
-   # import finger_counter  # your module for finger counting
     import fingers_counting_trails
 
     # --- Game Configuration ---
