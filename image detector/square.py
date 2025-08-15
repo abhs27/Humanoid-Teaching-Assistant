@@ -9,7 +9,8 @@ def runner_finger_counting_game():
 
     # --- Game Configuration ---
     POINTS_TO_WIN = 5
-    MAX_TOTAL_WRONG = 3
+    # --- CHANGE: Added a new constant for the fail condition ---
+    MAX_CONSECUTIVE_WRONG = 3
     WINDOW_NAME = "Finger Counting Game"
     SCALE_FACTOR = 0.5
 
@@ -48,24 +49,6 @@ def runner_finger_counting_game():
         text_y = y_start + (bar_height + text_size[1]) // 2
         cv2.putText(image, text, (text_x, text_y), cv2.FONT_HERSHEY_SIMPLEX, font_scale, (255, 255, 255), 2)
 
-    def draw_strikes(image, total_wrong, max_total_wrong):
-        height, width, _ = image.shape
-        radius = int(height * 0.02)
-        padding = int(width * 0.02)
-        y_pos = int(height * 0.15)
-        x_start = width - padding - radius
-        
-        for i in range(max_total_wrong):
-            center_x = x_start - i * (2 * radius + padding)
-            center_y = y_pos
-            cv2.circle(image, (center_x, center_y), radius, (100, 100, 100), 2)
-            if i < total_wrong:
-                offset = int(radius * 0.7)
-                thickness = 3
-                color = (0, 0, 255) # Red
-                cv2.line(image, (center_x - offset, center_y - offset), (center_x + offset, center_y + offset), color, thickness)
-                cv2.line(image, (center_x + offset, center_y - offset), (center_x - offset, center_y + offset), color, thickness)
-
     def draw_count_name(image, count_name):
         height, width, _ = image.shape
         font_scale = width / 700
@@ -92,12 +75,14 @@ def runner_finger_counting_game():
         thickness = int(size * 0.1)
         color = (0, 255, 0) if correct else (0, 0, 255)
         if correct:
+            # Draw tick mark
             pt1 = (center[0] - size // 4, center[1])
             pt2 = (center[0] - size // 10, center[1] + size // 4)
             pt3 = (center[0] + size // 3, center[1] - size // 5)
             cv2.line(image, pt1, pt2, color, thickness)
             cv2.line(image, pt2, pt3, color, thickness)
         else:
+            # Draw cross
             offset = size // 3
             cv2.line(image, (center[0] - offset, center[1] - offset), (center[0] + offset, center[1] + offset), color, thickness)
             cv2.line(image, (center[0] + offset, center[1] - offset), (center[0] - offset, center[1] + offset), color, thickness)
@@ -106,12 +91,14 @@ def runner_finger_counting_game():
     win_width = int(screen_width * SCALE_FACTOR)
     win_height = int(screen_height * SCALE_FACTOR)
     score = 0
-    total_wrong = 0
+    # --- CHANGE: Initialize a counter for consecutive wrong answers ---
+    consecutive_wrong = 0
     random.shuffle(COUNT_ITEMS)
     count_queue = COUNT_ITEMS.copy()
+
     cap = cv2.VideoCapture(0)
 
-    while score < POINTS_TO_WIN and total_wrong < MAX_TOTAL_WRONG:
+    while score < POINTS_TO_WIN:
         if not count_queue:
             count_queue = COUNT_ITEMS.copy()
             random.shuffle(count_queue)
@@ -125,14 +112,11 @@ def runner_finger_counting_game():
             continue
         frame = cv2.resize(frame, (win_width, win_height))
         draw_score_bar(frame, score, POINTS_TO_WIN)
-        draw_strikes(frame, total_wrong, MAX_TOTAL_WRONG)
-        
-        # --- CHANGE: The `draw_count_name` function is no longer called here ---
-        
+        draw_count_name(frame, count_name)
         cv2.imshow(WINDOW_NAME, frame)
         cv2.waitKey(1)
         print("\n-------------------------")
-        print(f"Count the items and show the number with your fingers...")
+        print(f"Show {count_name} fingers to the camera...")
         
         finger_count = fingers_counting_trails.get_finger_count_with_timer(2)
         
@@ -141,30 +125,36 @@ def runner_finger_counting_game():
             correct = True
             score += 1
             SOUND_CORRECT.play()
+            # --- CHANGE: Reset the counter on a correct answer ---
+            consecutive_wrong = 0
         else:
             SOUND_WRONG.play()
-            total_wrong += 1
-            print(f"Incorrect. Total wrong answers: {total_wrong}/{MAX_TOTAL_WRONG}")
+            # --- CHANGE: Increment the counter on a wrong answer ---
+            consecutive_wrong += 1
+            print(f"Incorrect. Consecutive wrong answers: {consecutive_wrong}/{MAX_CONSECUTIVE_WRONG}")
         
         display_tick_or_cross(frame, correct)
-        
-        # --- CHANGE: `draw_count_name` is now called here, on the feedback screen ---
-        draw_count_name(frame, count_name)
-        
         cv2.imshow(WINDOW_NAME, frame)
         cv2.waitKey(1200)
 
+        # --- CHANGE: Check if the consecutive wrong count has reached the limit ---
+        if consecutive_wrong >= MAX_CONSECUTIVE_WRONG:
+            print("\nGame Over: You made 3 incorrect attempts in a row.")
+            break # Exit the main game loop
+
     cap.release()
+
     end_screen = np.zeros((win_height, win_width, 3), dtype=np.uint8)
     font_scale_title = win_width / 400
     font_scale_subtitle = win_width / 800
     
+    # This logic now correctly handles both winning and losing conditions
     if score >= POINTS_TO_WIN:
         print("\nCongratulations! You reached the required score!")
         cv2.putText(end_screen, "YOU WIN!", (int(win_width * 0.24), int(win_height * 0.5)),
                     cv2.FONT_HERSHEY_TRIPLEX, font_scale_title, (50, 200, 50), 3)
         SOUND_WIN.play()
-    else:
+    else: # This 'else' block will be triggered if the loop was broken early
         cv2.putText(end_screen, "Game Over", (int(win_width * 0.18), int(win_height * 0.5)),
                     cv2.FONT_HERSHEY_TRIPLEX, font_scale_title, (200, 200, 200), 3)
     
