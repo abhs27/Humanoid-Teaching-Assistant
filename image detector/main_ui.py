@@ -2,45 +2,51 @@ import tkinter as tk
 import threading
 
 def launch_game(game_function, menu_win):
+    """Hides the menu, runs a game in a separate thread, and re-opens the menu when the game closes."""
     menu_win.withdraw()
     def game_wrapper():
-        game_function()
-        menu_win.deiconify()
+        try:
+            game_function()
+        except Exception as e:
+            print(f"Error running game: {e}")
+        finally:
+            # This ensures the menu reappears even if the game crashes
+            menu_win.deiconify()
     threading.Thread(target=game_wrapper, daemon=True).start()
 
 def launch_finger_counting_game():
-    # Replace the below import with your actual game function
+    """Launches the finger counting game."""
+    # Ensure your game file is named 'finger_counting_game.py'
     from finger_counting_game import runner_finger_counting_game
     runner_finger_counting_game()
 
 def launch_healthy_vs_junk():
-    from healthyVSjuk import run_healthy_vs_junk_food_game
+    """Launches the Healthy vs. Junk Food game."""
+    # Ensure your game file is named 'healthyVSjunk.py'
+    from healthyVSjunk import run_healthy_vs_junk_food_game
     run_healthy_vs_junk_food_game()
-    
-def dummy_game():
-    from tkinter import messagebox
-    messagebox.showinfo("Game", "This is a demo game.")
 
 def on_enter(e, btn, color):
+    """Changes button color on mouse hover."""
     btn['background'] = color
     btn['fg'] = "#ffffff"
 
 def on_leave(e, btn, color, fgcolor):
+    """Resets button color when mouse leaves."""
     btn['background'] = color
     btn['fg'] = fgcolor
 
 def open_menu():
     root = tk.Tk()
     root.title("🎈 KIDS GAME HUB 🎈")
-    win_w, win_h = 520, 500
+    # --- CHANGE: Adjusted window height for two buttons ---
+    win_w, win_h = 520, 450
     root.geometry(f"{win_w}x{win_h}")
     root.resizable(False, False)
 
-    # Set a bright, kid-friendly background color
     background_color = "#fdd835"  # Bright yellow
     root.configure(bg=background_color)
 
-    # Title and subtitle on top
     title_frame = tk.Frame(root, bg=background_color, padx=10, pady=10)
     title = tk.Label(
         title_frame, text="🎮  Fun & Games!  🎲",
@@ -50,16 +56,15 @@ def open_menu():
         fg="#00897B", bg=background_color)
     title.pack()
     subtitle.pack()
-    title_frame.pack(pady=30)
+    title_frame.pack(pady=20) # Slightly reduced padding
 
-    # Game buttons info
+    # --- CHANGE: Updated game list to include your two games and remove dummies ---
     games = [
         ("🖐 Finger Counting", launch_finger_counting_game, "#81d4fa", "#0288d1", "#4e342e"),
-        ("🐍 Rainbow Snake", dummy_game, "#b2ff59", "#689f38", "#4e342e"),
-        ("🐸 Doodle Jump", dummy_game, "#ffd54f", "#fbc02d", "#3e2723"),
+        ("🥗 Healthy vs Junk", launch_healthy_vs_junk, "#a5d6a7", "#66bb6a", "#3e2723")
     ]
 
-    for i, (label, func, bg_color, hover_color, fgcolor) in enumerate(games):
+    for label, func, bg_color, hover_color, fgcolor in games:
         btn = tk.Button(
             root, text=label, font=("Comic Sans MS", 20, "bold"), width=16, height=2,
             bg=bg_color, fg=fgcolor, bd=0, borderwidth=0,
@@ -69,15 +74,14 @@ def open_menu():
         )
         btn.pack(pady=16)
         btn.bind("<Enter>", lambda e, b=btn, col=hover_color: on_enter(e, b, col))
-        btn.bind("<Leave>", lambda e, b=btn, col=bg_color, fg=fgcolor: on_leave(e, b, col, fg))
+        btn.bind("<Leave>", lambda e, b=btn, col=bg_color, fgc=fgcolor: on_leave(e, b, col, fgc))
 
-    # Exit Button, large and kid-friendly
     exit_btn = tk.Button(
         root, text="🚪 Exit", font=("Comic Sans MS", 17, "bold"), width=12,
         bg="#F06292", fg="#fff", activebackground="#ad1457", activeforeground="#fff",
         command=root.destroy, bd=0, cursor="hand2", relief="flat"
     )
-    exit_btn.pack(pady=35)
+    exit_btn.pack(pady=30)
     exit_btn.bind("<Enter>", lambda e: exit_btn.config(bg="#ad1457"))
     exit_btn.bind("<Leave>", lambda e: exit_btn.config(bg="#F06292"))
 
