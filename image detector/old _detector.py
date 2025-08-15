@@ -5,7 +5,6 @@ import time
 # --- Configuration ---
 MIN_AREA = 3000
 HOLD_DURATION = 2.0
-MAX_RUNTIME = 15.0 # Maximum time in seconds for the function to run
 
 # --- HSV Color Ranges ---
 LOWER_GREEN = np.array([40, 70, 80])
@@ -40,17 +39,9 @@ def get_input():
 
     detection_state = None  # 'green' or 'red'
     start_time = None
-    
-    # --- MODIFICATION: Record the start time for the 10-second timeout ---
-    function_start_time = time.time()
 
     try:
         while True:
-            # --- MODIFICATION: Check if the total runtime has exceeded the maximum allowed time ---
-            if time.time() - function_start_time > MAX_RUNTIME:
-                print(f"Timeout: No selection made within {MAX_RUNTIME} seconds.")
-                break # Exit the loop if time limit is reached
-
             ret, frame = cap.read()
             if not ret:
                 print("Error: Failed to grab frame.")
@@ -98,7 +89,7 @@ def get_input():
                     cv2.putText(frame, confirm_text, (60, 130), cv2.FONT_HERSHEY_SIMPLEX, 1.2, (255, 255, 255), 3)
                     cv2.imshow("Input Capture", frame)
                     cv2.waitKey(1000)  # Show for 1 second
-                    return result # This is a successful exit
+                    return result
 
                 display_text = f"Hold for {remaining_time:.1f}s..."
 
@@ -108,22 +99,19 @@ def get_input():
 
             # Quit with 'q'
             if cv2.waitKey(1) & 0xFF == ord('q'):
-                return None # This is a user-quit exit
+                return None
 
     finally:
         cap.release()
         cv2.destroyAllWindows()
         print("Camera released.")
-    
-    # --- MODIFICATION: This return is now only reached on timeout ---
-    return None
 
 # --- Example of how to call it (for testing purposes) ---
 if __name__ == '__main__':
     print("This is a test run of the detector module.")
-    print(f"Please show a green or red placard to the camera within {MAX_RUNTIME} seconds.")
+    print("Please show a green or red placard to the camera.")
     user_choice = get_input()
     if user_choice:
         print(f"\nThe function returned: '{user_choice}'")
     else:
-        print("\nNo choice was made or the process was quit/timed out.")
+        print("\nNo choice was made or the process was quit.")
