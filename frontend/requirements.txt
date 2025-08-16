@@ -20,7 +20,7 @@
   pybase16384
   av
   pydub
-
+  RealtimeSTT
   flask
   flask-socketio
   flask-cors
