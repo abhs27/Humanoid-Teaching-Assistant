@@ -1,2 +1,0 @@
-from game_updating import run_healthy_vs_junk_food_game
-run_healthy_vs_junk_food_game()

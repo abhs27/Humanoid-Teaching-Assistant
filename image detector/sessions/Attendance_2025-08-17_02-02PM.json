@@ -1,0 +1,23 @@
+{
+  "checks_total": 1,
+  "checks_head_in_box": 1,
+  "attention_percent": 100.0,
+  "check_interval_sec": 5,
+  "started_at": "2025-08-17T14:02:10",
+  "ended_at": "2025-08-17T14:02:19",
+  "central_box_fraction": {
+    "width": "2/3",
+    "height": "2/3"
+  },
+  "output_dir": "C:\\Users\\jasmi\\OneDrive\\Desktop\\CAPSTONE\\git-repo\\Humanoid-Teaching-Assistant\\image detector\\sessions",
+  "report_prefix": "Attendance_2025-08-17_02-02PM",
+  "log": [
+    {
+      "timestamp": "2025-08-17T14:02:15",
+      "face_detected": 1,
+      "face_cx": 856,
+      "face_cy": 372,
+      "head_in_box": 1
+    }
+  ]
+}

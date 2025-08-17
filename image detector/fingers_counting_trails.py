@@ -2,6 +2,7 @@ import cv2
 import mediapipe as mp
 import time
 
+# Initialize MediaPipe Hands
 mp_hands = mp.solutions.hands
 mp_drawing = mp.solutions.drawing_utils
 hands = mp_hands.Hands(
@@ -11,17 +12,18 @@ hands = mp_hands.Hands(
     min_tracking_confidence=0.7
 )
 
+# Landmark IDs for the tips of the fingers
 finger_tips_ids = [4, 8, 12, 16, 20]  # Thumb, Index, Middle, Ring, Pinky
 
 def count_fingers_with_status(hand_landmarks):
     """
-    Counts the number of raised fingers and returns the count and status for each finger.
+    Counts the number of raised fingers from a given hand landmark list.
+    Returns the total count and a list of booleans indicating the status of each finger.
     """
     count = 0
-    finger_status = [False, False, False, False, False]  # Thumb, Index, Middle, Ring, Pinky
+    finger_status = [False] * 5  # [Thumb, Index, Middle, Ring, Pinky]
     
-    # Thumb: Check based on its x-coordinate relative to the joint below it.
-    # This logic works for a flipped camera view (right hand appears as left).
+    # Thumb: Check if its x-coordinate is to the left of the joint below it (for a right hand in a flipped view).
     if hand_landmarks.landmark[finger_tips_ids[0]].x < hand_landmarks.landmark[finger_tips_ids[0] - 1].x:
         count += 1
         finger_status[0] = True
@@ -36,7 +38,7 @@ def count_fingers_with_status(hand_landmarks):
 
 def draw_finger_circles(frame, hand_landmarks, finger_status):
     """
-    Draws circles on the tips of any fingers that are detected as being raised.
+    Draws circles on the tips of raised fingers.
     """
     height, width, _ = frame.shape
     
@@ -44,50 +46,56 @@ def draw_finger_circles(frame, hand_landmarks, finger_status):
         if is_raised:
             # Get the normalized coordinates of the fingertip
             tip_landmark = hand_landmarks.landmark[finger_tips_ids[i]]
-            # Convert normalized coordinates to pixel coordinates
+            # Convert to pixel coordinates
             tip_x = int(tip_landmark.x * width)
             tip_y = int(tip_landmark.y * height)
             
-            # Draw a filled red circle with a white border for visibility
-            cv2.circle(frame, (tip_x, tip_y), 15, (0, 0, 255), -1)
+            # Draw a filled red circle with a white border
+            cv2.circle(frame, (tip_x, tip_y), 15, (0, 255, 0), -1)
             cv2.circle(frame, (tip_x, tip_y), 15, (255, 255, 255), 2)
 
 def get_finger_count_with_timer(duration=2, max_runtime_seconds=10, stop_event=None):
     """
-    Opens the camera and exits after max_runtime_seconds or when a gesture is locked.
+    Opens the camera, displays a countdown, and detects a stable finger count.
     """
     cap = cv2.VideoCapture(0)
-    window_name = 'Finger Counting'
+    window_name = 'Show Your Hand!'
     
     if not cap.isOpened():
         print("Error: Could not open webcam.")
         return None
     
-    start_time = None
+    gesture_start_time = None
     detected_fingers = None
     final_count = None
 
-    # --- TIMER FOR OVERALL RUNTIME ---
+    # Timer for the overall 10-second runtime
     overall_start_time = time.time()
 
     while True:
-        # --- CHECK IF 10 SECONDS HAVE PASSED ---
-        if time.time() - overall_start_time > max_runtime_seconds:
+        elapsed_time = time.time() - overall_start_time
+        remaining_time = max(0, max_runtime_seconds - elapsed_time)
+
+        # Exit if 10 seconds have passed
+        if remaining_time == 0:
             print(f"Timeout: Exiting after {max_runtime_seconds} seconds.")
             break
 
-        # Early exit if this function is part of a larger threaded application
-        if stop_event is not None and stop_event.is_set():
-            final_count = None
+        # Handle threaded exit signals if applicable
+        if stop_event and stop_event.is_set():
             break
 
         success, frame = cap.read()
         if not success:
             break
-
-        # Flip the frame horizontally for a more intuitive mirror-like view
+        
+        # --- RESIZE AND FLIP THE FRAME ---
+        # Flip the frame horizontally for a mirror view first
         frame = cv2.flip(frame, 1)
-        # Convert the BGR image to RGB for Mediapipe processing
+        # Then, resize the frame to half its original size
+        height, width, _ = frame.shape
+        frame = cv2.resize(frame, (width // 2, height // 2))
+
         rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
         results = hands.process(rgb_frame)
 
@@ -97,48 +105,57 @@ def get_finger_count_with_timer(duration=2, max_runtime_seconds=10, stop_event=N
                 fingers, finger_status = count_fingers_with_status(hand_landmarks)
                 draw_finger_circles(frame, hand_landmarks, finger_status)
                 
+                # If the finger count changes, reset the gesture timer
                 if detected_fingers != fingers:
                     detected_fingers = fingers
-                    start_time = time.time()
+                    gesture_start_time = time.time()
                 
-                if start_time and (time.time() - start_time) > duration:
+                # If a gesture is held for the required duration, lock it in
+                if gesture_start_time and (time.time() - gesture_start_time) > duration:
                     final_count = detected_fingers
-                    cv2.putText(frame, f'Fingers: {final_count}', (50, 100),
-                                cv2.FONT_HERSHEY_SIMPLEX, 2, (255, 0, 0), 3)
+                    break # Exit the inner for-loop
         else:
-            if final_count is None:
-                start_time = None
-                detected_fingers = None
+            # If no hand is detected, reset the gesture timer
+            gesture_start_time = None
+            detected_fingers = None
+        
+        # --- DISPLAY THE COUNTDOWN TIMER ---
+        timer_text = f"{int(remaining_time)}"
+        font_scale = 2.5
+        thickness = 4
+        outline_thickness = 7
+        text_pos = (30, 80) # Position in the top-left corner
+        
+        # Draw white outline by drawing text with a thicker stroke
+        cv2.putText(frame, timer_text, text_pos, cv2.FONT_HERSHEY_SIMPLEX, font_scale, (255, 255, 255), outline_thickness, cv2.LINE_AA)
+        # Draw the black text on top
+        cv2.putText(frame, timer_text, text_pos, cv2.FONT_HERSHEY_SIMPLEX, font_scale, (0, 0, 0), thickness, cv2.LINE_AA)
+
 
         cv2.imshow(window_name, frame)
         
         key = cv2.waitKey(1) & 0xFF
-        
-        if key == 27:
-            print("ESC key pressed. Exiting.")
+        if key == 27: # ESC key
             final_count = None 
             break
 
         if cv2.getWindowProperty(window_name, cv2.WND_PROP_VISIBLE) < 1:
-            print("Window closed by user.")
-            if final_count is None:
-                final_count = None
+            final_count = None
             break
 
         if final_count is not None:
-            if time.time() - (start_time + duration) > 2:
-                break
+            time.sleep(0.5) # Pause briefly to show the locked-in count
+            break
 
-    # Clean up and release resources
+    # Clean up
     cap.release()
     cv2.destroyAllWindows()
     return final_count
 
-# Standalone test to run the script directly
+# Standalone test
 if __name__ == "__main__":
-    print("Starting finger count detection. The window will automatically close after 10 seconds.")
-    # The new max_runtime_seconds parameter is used here
-    count = get_finger_count_with_timer(duration=3, max_runtime_seconds=10)
+    print("Starting finger count detection. The window will close after 10 seconds.")
+    count = get_finger_count_with_timer(duration=2, max_runtime_seconds=10)
     
     if count is not None:
         print(f"Final counted fingers: {count}")

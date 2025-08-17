@@ -32,6 +32,19 @@ def draw_progress_circle(frame, center, radius, progress, color):
         alpha = 0.7
         cv2.addWeighted(overlay, alpha, frame, 1 - alpha, 0, frame)
 
+# --- MODIFICATION: Helper function to find the largest valid contour ---
+def find_largest_contour(contours, min_area):
+    """ Finds the largest contour in a list, provided it's larger than min_area. """
+    if not contours:
+        return None
+    
+    largest_c = max(contours, key=cv2.contourArea)
+    if cv2.contourArea(largest_c) > min_area:
+        return largest_c
+        
+    return None
+# --- END MODIFICATION ---
+
 def get_input():
     cap = cv2.VideoCapture(0)
     if not cap.isOpened():
@@ -40,16 +53,14 @@ def get_input():
 
     detection_state = None  # 'green' or 'red'
     start_time = None
-    
-    # --- MODIFICATION: Record the start time for the 10-second timeout ---
+
     function_start_time = time.time()
 
     try:
         while True:
-            # --- MODIFICATION: Check if the total runtime has exceeded the maximum allowed time ---
             if time.time() - function_start_time > MAX_RUNTIME:
                 print(f"Timeout: No selection made within {MAX_RUNTIME} seconds.")
-                break # Exit the loop if time limit is reached
+                break
 
             ret, frame = cap.read()
             if not ret:
@@ -67,14 +78,23 @@ def get_input():
             green_contours, _ = cv2.findContours(green_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
             red_contours, _ = cv2.findContours(red_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
-            found_green = any(cv2.contourArea(c) > MIN_AREA for c in green_contours)
-            found_red = any(cv2.contourArea(c) > MIN_AREA for c in red_contours)
+            # --- MODIFICATION: Find specific largest contours to highlight ---
+            largest_green = find_largest_contour(green_contours, MIN_AREA)
+            largest_red = find_largest_contour(red_contours, MIN_AREA)
+            # --- END MODIFICATION ---
 
             current_detection = None
-            if found_green and not found_red:
+            # --- CORRECTION: Explicitly check for 'is not None' and set outline color ---
+            if largest_green is not None and largest_red is None:
                 current_detection = 'green'
-            elif found_red and not found_green:
+                highlight_color = (0, 255, 0)  # Green outline
+                cv2.drawContours(frame, [largest_green], -1, highlight_color, 3)
+
+            elif largest_red is not None and largest_green is None:
                 current_detection = 'red'
+                highlight_color = (0, 0, 255)  # Red outline
+                cv2.drawContours(frame, [largest_red], -1, highlight_color, 3)
+            # --- END CORRECTION ---
 
             if current_detection != detection_state:
                 detection_state = current_detection
@@ -98,7 +118,7 @@ def get_input():
                     cv2.putText(frame, confirm_text, (60, 130), cv2.FONT_HERSHEY_SIMPLEX, 1.2, (255, 255, 255), 3)
                     cv2.imshow("Input Capture", frame)
                     cv2.waitKey(1000)  # Show for 1 second
-                    return result # This is a successful exit
+                    return result
 
                 display_text = f"Hold for {remaining_time:.1f}s..."
 
@@ -108,14 +128,13 @@ def get_input():
 
             # Quit with 'q'
             if cv2.waitKey(1) & 0xFF == ord('q'):
-                return None # This is a user-quit exit
+                return None
 
     finally:
         cap.release()
         cv2.destroyAllWindows()
         print("Camera released.")
-    
-    # --- MODIFICATION: This return is now only reached on timeout ---
+
     return None
 
 # --- Example of how to call it (for testing purposes) ---

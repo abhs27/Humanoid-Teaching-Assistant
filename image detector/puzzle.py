@@ -4,6 +4,7 @@ import random
 import math
 import pygame
 
+
 # ---------- STYLE / CONSTANTS ----------
 MARGIN = 24
 BOARD_PAD = 16
@@ -37,8 +38,10 @@ TITLE = "Picture Strip Puzzle"
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 ASSET_DIR = os.path.join(BASE_DIR, "puzzle_sprites")
 
+
 def asset(*parts):
     return os.path.join(ASSET_DIR, *parts)
+
 
 # Pair each image with its corresponding background music
 IMAGE_FILES = [
@@ -49,8 +52,9 @@ IMAGE_FILES = [
 MUSIC_FILES = [
     "bg_music_bheem.wav",       # matches bheem.jpg
     "bg_music_picture.wav",     # matches picture.jpg
-    "bg_music_animals.wav",     # matches animals.jpg
+    "bg_music_animals.wav",     # matches animals.jpg (used for lion.png here)
 ]
+
 
 # Pick a random pair
 rand_idx = random.randrange(min(len(IMAGE_FILES), len(MUSIC_FILES)))
@@ -67,6 +71,7 @@ DEFAULT_DIFF = "Medium"
 MIN_STRIP_H = 60
 MAX_WIN_W = 1920
 MAX_WIN_H = 1200
+
 
 # ---------- HELPERS ----------
 def load_image_or_placeholder(path, w=1200, h=800):
@@ -88,6 +93,7 @@ def load_image_or_placeholder(path, w=1200, h=800):
     except Exception:
         return pygame.image.load(path)
 
+
 def try_play_music(path, vol=0.35):
     try:
         if not os.path.exists(path):
@@ -102,6 +108,7 @@ def try_play_music(path, vol=0.35):
         print(f"[music] failed: {e}")
         return False
 
+
 def restart_bg_music(path, vol=0.35):
     if not pygame.mixer.get_init():
         return
@@ -114,6 +121,7 @@ def restart_bg_music(path, vol=0.35):
     except Exception as e:
         print(f"[music] restart failed: {e}")
 
+
 def try_load_sound(path):
     try:
         if os.path.exists(path):
@@ -122,8 +130,10 @@ def try_load_sound(path):
         pass
     return None
 
+
 def rounded_rect(surface, rect, color, radius=14, width=0):
     pygame.draw.rect(surface, color, rect, width=width, border_radius=radius)
+
 
 def draw_shadow_panel(surface, rect, radius=16, shadow=8):
     shadow_rect = rect.move(shadow, shadow)
@@ -131,10 +141,12 @@ def draw_shadow_panel(surface, rect, radius=16, shadow=8):
     rounded_rect(surface, rect, PANEL, radius)
     pygame.draw.rect(surface, PANEL_BORDER, rect, width=2, border_radius=radius)
 
+
 def scale_surface(surface, scale):
     w, h = surface.get_size()
     nw, nh = max(1, int(w*scale)), max(1, int(h*scale))
     return pygame.transform.smoothscale(surface, (nw, nh))
+
 
 # ---------- UI ELEMENTS ----------
 class Button:
@@ -161,6 +173,7 @@ class Button:
             if self.rect.collidepoint(ev.pos):
                 return True
         return False
+
 
 class Strip:
     def __init__(self, image_scaled, src_rect, correct_index):
@@ -194,6 +207,7 @@ class Strip:
         self.cache_surf = surf
         return surf
 
+
 # ---------- SLICING ----------
 def slice_rows(image_scaled, rows):
     w, h = image_scaled.get_size()
@@ -206,9 +220,11 @@ def slice_rows(image_scaled, rows):
         y += hh
     return rects
 
+
 def build_strips(image_scaled, rows):
     rects = slice_rows(image_scaled, rows)
     return [Strip(image_scaled, r, i) for i, r in enumerate(rects)]
+
 
 # ---------- LAYOUT / SIZING ----------
 def compute_window_size_for(image_size, rows, display_w, display_h):
@@ -222,6 +238,7 @@ def compute_window_size_for(image_size, rows, display_w, display_h):
                 (display_h-60) / max(1, win_h))
     scale = min(scale, MAX_WIN_W/max(1, win_w), MAX_WIN_H/max(1, win_h))
     return scale, int(win_w*scale), int(win_h*scale)
+
 
 def rebuild_everything(full_img, rows, display_w, display_h):
     img = full_img.copy()
@@ -257,6 +274,7 @@ def rebuild_everything(full_img, rows, display_w, display_h):
         r.move_ip(0, shift)
 
     return img, win_w, win_h, board_rect, inner_board, picture_area, strips, dest_rects
+
 
 # ---------- MAIN ----------
 def main():
@@ -302,6 +320,7 @@ def main():
     # Buttons
     btn_w, btn_h = 150, 44
     spacing = 16
+
     def make_buttons():
         y = win_h - BOTTOMBAR_H + (BOTTOMBAR_H-btn_h)//2
         x = MARGIN
@@ -312,6 +331,7 @@ def main():
         btns["Numbers"] = Button((x, y, 150, btn_h), f"Numbers: {'On' if show_numbers else 'Off'}"); x += 150 + 10
         btns["Mute"] = Button((win_w - MARGIN - 110, y, 110, btn_h), "Mute" if music_on else "Unmute")
         return btns
+
     btns = make_buttons()
 
     order = list(range(rows))
@@ -322,6 +342,26 @@ def main():
     swap_anim = 0.0
     swap_pair = None
 
+    # Win menu state
+    win_time = None
+    show_win_menu = False
+    play_again_btn = None
+    exit_btn = None
+    win_menu_rect = None
+
+    def make_win_menu_buttons():
+        nonlocal play_again_btn, exit_btn
+        mw, mh = 420, 200
+        menu_rect = pygame.Rect(0, 0, mw, mh)
+        menu_rect.center = (win_w // 2, win_h // 2)
+
+        bw, bh = 160, 48
+        gap = 24
+        by = menu_rect.bottom - 32 - bh
+        play_again_btn = Button((menu_rect.centerx - gap//2 - bw, by, bw, bh), "Play Again")
+        exit_btn = Button((menu_rect.centerx + gap//2, by, bw, bh), "Exit")
+        return menu_rect
+
     def is_solved():
         return all(order[i] == i for i in range(len(order)))
 
@@ -329,11 +369,70 @@ def main():
     while running:
         dt = clock.tick(60) / 1000.0
 
+        # Event handling
         for ev in pygame.event.get():
             if ev.type == pygame.QUIT:
                 running = False
+                continue
 
-            # Button-only controls
+            # If the win menu is visible, only handle its buttons and skip other interactions
+            if show_win_menu:
+                # Update hover state and handle clicks
+                if play_again_btn:
+                    play_again_btn.handle(ev)
+                if exit_btn:
+                    exit_btn.handle(ev)
+
+                if ev.type == pygame.MOUSEBUTTONDOWN and ev.button == 1:
+                    if play_again_btn and play_again_btn.rect.collidepoint(ev.pos):
+                        # Pick a new random image/music pair
+                        new_idx = random.randrange(min(len(IMAGE_FILES), len(MUSIC_FILES)))
+                        new_image_file = asset(IMAGE_FILES[new_idx])
+                        new_music_file = asset(MUSIC_FILES[new_idx])
+
+                        # Load new image (no convert yet)
+                        new_raw = load_image_or_placeholder(new_image_file)
+                        # Rebuild everything with same difficulty
+                        (scaled_img, win_w, win_h, board_rect, inner_board, picture_area,
+                         strips, dest_rects) = rebuild_everything(new_raw, rows, display_w, display_h)
+                        screen = pygame.display.set_mode((win_w, win_h))
+
+                        # Convert after display creation
+                        if new_raw.get_bitsize() in (24, 32):
+                            new_raw = new_raw.convert()
+                        scaled_img = scaled_img.convert()
+
+                        # Update globals to the new image/music
+                        raw_img = new_raw
+                        # Update module-level paths for reference
+                        globals()["IMAGE_FILE"] = new_image_file
+
+                        # Reset order and UI
+                        order = list(range(rows))
+                        random.shuffle(order)
+                        selected_pos = None
+                        won = False
+                        confetti.clear()
+                        swap_anim = 0.0
+                        swap_pair = None
+                        win_time = None
+                        show_win_menu = False
+                        win_menu_rect = None
+
+                        # Restart music with the new track
+                        globals()["MUSIC_FILE"] = new_music_file
+                        restart_bg_music(MUSIC_FILE, 0.35)
+
+                        # Also rebuild bottom bar buttons to match new win_w/win_h
+                        btns = make_buttons()
+
+                    elif exit_btn and exit_btn.rect.collidepoint(ev.pos):
+                        running = False
+
+                # Skip other UI interactions while popup is active
+                continue
+
+            # Button-only controls (not when popup visible)
             for name, b in list(btns.items()):
                 if b.handle(ev):
                     if name == "Shuffle":
@@ -388,6 +487,9 @@ def main():
                         selected_pos = None
                         if is_solved():
                             won = True
+                            win_time = pygame.time.get_ticks()
+                            show_win_menu = False
+                            win_menu_rect = None
                             # Stop bg music and play win sfx
                             if pygame.mixer.get_init():
                                 try: pygame.mixer.music.stop()
@@ -418,6 +520,13 @@ def main():
                     p["y"] = random.uniform(-200, -20)
                     p["x"] = random.uniform(0, win_w)
 
+        # After winning, show menu after 3 seconds (non-blocking)
+        if won and not show_win_menu:
+            if win_time is not None:
+                if pygame.time.get_ticks() - win_time >= 3000:  # 3000ms
+                    show_win_menu = True
+                    win_menu_rect = make_win_menu_buttons()
+
         # -------- DRAW --------
         screen.fill(BG)
 
@@ -430,7 +539,7 @@ def main():
 
         # Board panels
         draw_shadow_panel(screen, pygame.Rect(MARGIN, TOPBAR_H + MARGIN,
-                                              win_w - 2*MARGIN, win_h - TOPBAR_H - BOTTOMBAR_H - 2*MARGIN), radius=18)
+                                             win_w - 2*MARGIN, win_h - TOPBAR_H - BOTTOMBAR_H - 2*MARGIN), radius=18)
         inner_board = pygame.Rect(MARGIN+BOARD_PAD, TOPBAR_H + MARGIN + BOARD_PAD,
                                   win_w - 2*(MARGIN+BOARD_PAD), win_h - TOPBAR_H - BOTTOMBAR_H - 2*(MARGIN+BOARD_PAD))
         rounded_rect(screen, inner_board, (244, 247, 255), 14)
@@ -490,6 +599,23 @@ def main():
             for p in confetti:
                 pygame.draw.rect(screen, p["color"], (p["x"], p["y"], p["size"], p["size"]))
 
+            # If it's time, draw a modal overlay with the win menu
+            if show_win_menu and win_menu_rect:
+                # Dim background
+                dim = pygame.Surface((win_w, win_h), pygame.SRCALPHA)
+                dim.fill((0, 0, 0, 100))
+                screen.blit(dim, (0, 0))
+
+                # Menu panel
+                draw_shadow_panel(screen, win_menu_rect, radius=18)
+                title_msg = strip_font.render("What would you like to do?", True, TEXT)
+                screen.blit(title_msg, (win_menu_rect.centerx - title_msg.get_width()//2,
+                                        win_menu_rect.y + 24))
+
+                # Buttons
+                play_again_btn.draw(screen, ui_font)
+                exit_btn.draw(screen, ui_font)
+
         # Bottom bar + buttons
         draw_shadow_panel(screen, pygame.Rect(0, win_h - BOTTOMBAR_H, win_w, BOTTOMBAR_H), radius=16)
         for b in btns.values():
@@ -500,6 +626,7 @@ def main():
 
     pygame.quit()
     sys.exit()
+
 
 if __name__ == "__main__":
     main()
